@@ -6,7 +6,7 @@
 
 ```
 telegram-gpt-bot/
-├── app.py                  # FastAPI health + запуск polling (Render)
+├── app.py                  # FastAPI health + webhook (Render)
 ├── pyproject.toml          # метаданные пакета и зависимости
 ├── requirements.txt       # те же зависимости для классического pip install
 ├── .env.example             # шаблон переменных окружения
@@ -15,7 +15,7 @@ telegram-gpt-bot/
     └── telegram_gpt_bot/
         ├── __init__.py
         ├── __main__.py      # точка входа: python -m telegram_gpt_bot
-        ├── app.py           # сборка Application и polling
+        ├── app.py           # сборка Application, webhook и polling
         ├── config.py        # загрузка .env и настройки
         ├── gpt.py           # вызов Chat Completions
         └── handlers.py      # обработчики сообщений
@@ -80,34 +80,44 @@ copy .env.example .env
 - `TELEGRAM_BOT_TOKEN` — токен от BotFather
 - `OPENAI_API_KEY` — ключ OpenAI
 - `OPENAI_MODEL` — необязательно, по умолчанию `gpt-4o-mini`
+- `WEBHOOK_URL` — полный URL webhook для Render, например `https://telegram-gpt-bot.onrender.com/webhook` (нужен только для `app.py` / Render, не для локального polling)
 
 Файл `.env` не коммитьте в git (он уже в `.gitignore`).
 
 ### 4. Запуск бота
 
-Локально (только Telegram, без health-сервера):
+**Локально (polling)** — без `WEBHOOK_URL`, удобно для разработки:
 
 ```bash
 python -m telegram_gpt_bot
 ```
 
-С health-сервером (как на Render — polling и FastAPI вместе):
+Перед первым polling на Render снимите webhook, если он был установлен: бот не должен работать в двух режимах одновременно с одним токеном.
+
+**Render / production (webhook)** — через FastAPI, polling не используется:
 
 ```bash
 python app.py
 ```
 
-Бот начнёт long polling. В чате с ботом отправьте текст — ответ придёт после запроса к OpenAI. Команда `/start` выводит краткую подсказку.
+или `uvicorn app:app --host 0.0.0.0 --port $PORT`.
 
-Проверка health: `GET http://localhost:8000/` → `{"status":"ok"}` (порт берётся из `PORT`, по умолчанию `8000`).
+- `GET /` → `{"status":"ok"}`
+- `POST /webhook` — обновления от Telegram
+
+При старте `app.py` вызывается `bot.set_webhook` с URL из `WEBHOOK_URL`.
 
 ## Деплой на Render
 
 1. **Build command:** `pip install -e .`
 2. **Start command:** `uvicorn app:app --host 0.0.0.0 --port $PORT`
-3. В **Environment** задайте `TELEGRAM_BOT_TOKEN`, `OPENAI_API_KEY` и при необходимости `OPENAI_MODEL`.
+3. В **Environment** задайте:
+   - `TELEGRAM_BOT_TOKEN`
+   - `OPENAI_API_KEY`
+   - `OPENAI_MODEL` (опционально)
+   - `WEBHOOK_URL` — `https://<имя-сервиса>.onrender.com/webhook`
 
-Render выставляет переменную `PORT` — uvicorn слушает этот порт; `GET /` отвечает `{"status":"ok"}` для health check.
+Render выставляет `PORT`; health check — `GET /`. Telegram шлёт обновления на `POST /webhook`.
 
 ## Примечания
 
