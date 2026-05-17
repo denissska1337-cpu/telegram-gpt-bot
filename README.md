@@ -6,6 +6,7 @@
 
 ```
 telegram-gpt-bot/
+├── app.py                  # FastAPI health + запуск polling (Render)
 ├── pyproject.toml          # метаданные пакета и зависимости
 ├── requirements.txt       # те же зависимости для классического pip install
 ├── .env.example             # шаблон переменных окружения
@@ -84,11 +85,29 @@ copy .env.example .env
 
 ### 4. Запуск бота
 
+Локально (только Telegram, без health-сервера):
+
 ```bash
 python -m telegram_gpt_bot
 ```
 
+С health-сервером (как на Render — polling и FastAPI вместе):
+
+```bash
+python app.py
+```
+
 Бот начнёт long polling. В чате с ботом отправьте текст — ответ придёт после запроса к OpenAI. Команда `/start` выводит краткую подсказку.
+
+Проверка health: `GET http://localhost:8000/` → `{"status":"ok"}` (порт берётся из `PORT`, по умолчанию `8000`).
+
+## Деплой на Render
+
+1. **Build command:** `pip install -e .`
+2. **Start command:** `uvicorn app:app --host 0.0.0.0 --port $PORT`
+3. В **Environment** задайте `TELEGRAM_BOT_TOKEN`, `OPENAI_API_KEY` и при необходимости `OPENAI_MODEL`.
+
+Render выставляет переменную `PORT` — uvicorn слушает этот порт; `GET /` отвечает `{"status":"ok"}` для health check.
 
 ## Примечания
 
